@@ -1,14 +1,7 @@
-
-const path = require('path');
-const { Pool } = require('pg');
-require('dotenv').config({ path: path.resolve(__dirname, '.env') });
-
-const pool = new Pool({
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  database: process.env.DB_NAME,
-});
+/**
+ * Legacy db.js export for backward compatibility.
+ * Re-exports the central database pool from config/db.
+ */
+const { pool } = require('./config/db');
 
 module.exports = pool;

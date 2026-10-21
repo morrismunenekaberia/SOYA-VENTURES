@@ -1,39 +1,35 @@
+/**
+ * Soya Ventures - Server Entrypoint
+ */
 
-const express = require('express');
-require('dotenv').config();
+const app = require('./app');
+const config = require('./config/env');
+const { pool } = require('./config/db');
 
-const pool = require('./db');
+const server = app.listen(config.port, '0.0.0.0', () => {
+  console.log(`\n🚀 Soya Ventures API server listening on http://0.0.0.0:${config.port}`);
+  console.log(`Environment: ${config.nodeEnv}`);
+  console.log(`Health check: http://localhost:${config.port}/api/health`);
+  console.log(`DB readiness: http://localhost:${config.port}/api/health/db\n`);
+});
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(express.json());
-
-// Check whether the API is running.
-app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    message: 'Soya Ventures API is running',
+// Graceful shutdown handling
+function handleGracefulShutdown(signal) {
+  console.log(`\nReceived ${signal}. Gracefully terminating server...`);
+  server.close(async () => {
+    console.log('HTTP server closed.');
+    try {
+      await pool.end();
+      console.log('PostgreSQL connection pool drained.');
+      process.exit(0);
+    } catch (err) {
+      console.error('Error during pool draining:', err.message);
+      process.exit(1);
+    }
   });
-});
+}
 
-// Retrieve all products from PostgreSQL.
-app.get('/api/products', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, name, price, created_at FROM products ORDER BY id'
-    );
+process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
 
-    res.status(200).json(result.rows);
-  } catch (error) {
-    console.error('Failed to retrieve products:', error.message);
-
-    res.status(500).json({
-      error: 'Failed to retrieve products',
-    });
-  }
-});
-
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Soya Ventures API running on port ${PORT}`);
-});
+module.exports = server;

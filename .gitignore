@@ -1,0 +1,25 @@
+# Environment and Secrets
+backend/.env
+backend/.env.*
+!backend/.env.example
+.env
+.env.*
+
+# Dependencies
+backend/node_modules/
+node_modules/
+
+# Logs
+*.log
+backend/*.log
+npm-debug.log*
+
+# Testing & Coverage
+coverage/
+
+# OS and Editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+

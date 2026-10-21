@@ -1,2 +1,18 @@
-env 
-backend/
+# Dependencies
+node_modules/
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# Testing & Coverage
+coverage/
+
+# OS Files
+.DS_Store
+Thumbs.db
