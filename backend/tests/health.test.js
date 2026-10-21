@@ -25,6 +25,7 @@ describe('Health & Database Readiness Endpoints', () => {
   });
 
   after(async () => {
+    if (server.closeAllConnections) server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
     await pool.end();
   });

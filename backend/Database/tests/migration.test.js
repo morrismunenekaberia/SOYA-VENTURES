@@ -31,6 +31,7 @@ describe('Database Schema & Constraint Verification', () => {
       '004_payouts_ledger.sql',
       '005_audit_logs.sql',
       '006_performance_indexes.sql',
+      '007_create_order_items.sql',
     ];
     for (const exp of expected) {
       assert.ok(appliedVersions.includes(exp), `Expected migration ${exp} to be applied`);
@@ -49,6 +50,7 @@ describe('Database Schema & Constraint Verification', () => {
       'products',
       'stock',
       'orders',
+      'order_items',
       'sales',
       'commissions',
       'stock_movements',

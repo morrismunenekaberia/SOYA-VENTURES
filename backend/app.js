@@ -10,7 +10,12 @@ const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const healthRoutes = require('./routes/healthRoutes');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
-const { pool } = require('./config/db');
+const productRoutes = require('./routes/productRoutes');
+const centerRoutes = require('./routes/centerRoutes');
+const inventoryRoutes = require('./routes/inventoryRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+const saleRoutes = require('./routes/saleRoutes');
+const commissionRoutes = require('./routes/commissionRoutes');
 
 const app = express();
 
@@ -27,23 +32,12 @@ app.use(requestLogger);
 app.use('/api/health', healthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-
-// Preserve existing products endpoint (read-only)
-app.get('/api/products', async (req, res, next) => {
-  try {
-    const result = await pool.query(
-      'SELECT id, name, price, is_active, created_at FROM products ORDER BY id'
-    );
-    res.status(200).json({
-      success: true,
-      data: {
-        products: result.rows,
-      },
-    });
-  } catch (error) {
-    next(error);
-  }
-});
+app.use('/api/products', productRoutes);
+app.use('/api/centers', centerRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/sales', saleRoutes);
+app.use('/api/commissions', commissionRoutes);
 
 // Centralized 404 handler for unrecognized endpoints
 app.use(notFoundHandler);

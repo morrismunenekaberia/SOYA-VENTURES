@@ -1,8 +1,8 @@
 # Soya Ventures - Project State & Architecture Documentation
 
-**Last Updated:** 2026-10-21 (Task 3 Completed: Backend Foundation)  
+**Last Updated:** 2026-10-21 (Task 4 Completed: Business APIs)  
 **Project Path:** `/home/swe-dev/Projects/Flutter_app/Soya_Ventures`  
-**Purpose:** Single source of truth for developers and AI models to continue work seamlessly.
+**Purpose:** Single source of truth for developers and AI agents to continue work seamlessly.
 
 ---
 
@@ -12,177 +12,141 @@ Soya Ventures is a multi-platform sales, inventory, downline referral commission
 - **Frontend:** Flutter mobile/desktop app (`SoyaVentures/`).
 - **Backend:** Node.js, Express 5, PostgreSQL (`pg` connection pool), `dotenv`, `bcryptjs`, `jsonwebtoken`.
 - **Target Roles:**
-  1. `admin`: Global configuration, financials, creating privileged accounts, payout authorization.
-  2. `manager`: Oversight, analytics, restocking approvals, viewing agents.
+  1. `admin`: Global configuration, financials, creating privileged accounts, payout authorization, product/center management.
+  2. `manager`: Regional oversight, restocking approvals, analytics.
   3. `center`: Center Hub Operator holding local inventory, receiving restocking, fulfilling agent stock requests.
   4. `agent`: Direct sales force, picks up inventory, records sales, earns direct commissions and 1-tier downline referral overrides.
 
 ---
 
-## 2. Repository & Security Status
+## 2. Technology Stack & Database Migrations
 
-### 2.1 Git Hygiene & Security Remediation (Completed)
-- **Sensitive files untracked:** `backend/.env` and `backend/node_modules/` were removed from Git index tracking (`git rm --cached`).
-- **Git Ignore rules:** Updated `backend/.gitignore` and created root `.gitignore` to strictly exclude `.env`, `.env.*`, `node_modules/`, and logs.
-- **Template provided:** Created [`backend/.env.example`](file:///home/swe-dev/Projects/Flutter_app/Soya_Ventures/backend/.env.example) containing safe placeholder configuration keys only.
-
----
-
-## 3. Technology Stack & Runtime Configuration
-
-- **Node.js:** v24.21.0
-- **npm:** 11.19.0
-- **Database:** PostgreSQL on port 5432, accepting connections.
-- **Dependencies (`backend/package.json`):**
-  - `express`: `^5.3.0`
-  - `pg`: `^8.23.1`
-  - `dotenv`: `^18.0.8`
-  - `bcryptjs`: `^3.0.3`
-  - `jsonwebtoken`: `^9.0.3`
+- **Node.js:** v24.21.0 | **npm:** 11.19.0
+- **PostgreSQL:** Running on port 5432, accepting connections.
+- **Migrations Applied (`backend/Database/migrations/`):**
+  1. `001_initial_baseline.sql`: Core baseline tables.
+  2. `002_users_and_referrals.sql`: Phone number, active flags, referral constraints.
+  3. `003_inventory_and_orders.sql`: Order types, audit timestamps, stock movements ledger.
+  4. `004_payouts_ledger.sql`: Payout batches, payout items, commission status, duplicate payout prevention.
+  5. `005_audit_logs.sql`: Audit logs with secret scrubbing check constraints.
+  6. `006_performance_indexes.sql`: Foreign keys, status columns, and timestamp indexes.
+  7. `007_create_order_items.sql`: Multi-product line items table (`order_items`), header enhancements (`orders.total_amount`, `orders.center_id`), and product base commission (`products.commission_per_unit`).
 
 ---
 
-## 4. Backend Modular Architecture
+## 3. Business API Endpoints Reference
 
-The backend foundation is structured into clean, understandable, and maintainable layers:
+### 3.1 Product Catalog (`/api/products`)
 
-```
-backend/
-├── .env.example              # Environment variables template
-├── .gitignore                # Git exclusion rules
-├── package.json              # Scripts & dependencies
-├── index.js                  # Entry point (port listener & graceful shutdown)
-├── app.js                    # Express setup, middleware pipeline, route mounting
-├── config/
-│   ├── env.js                # Centralized env validation (fails fast if keys are missing)
-│   └── db.js                 # PostgreSQL connection pool & readiness check query
-├── middleware/
-│   ├── auth.js               # JWT verification & req.user attachment
-│   ├── rbac.js               # Role authorization (admin, manager, center, agent)
-│   ├── rateLimiter.js        # In-memory sliding window rate limiter
-│   ├── errorHandler.js       # Centralized error handler returning consistent JSON
-│   └── requestLogger.js      # Console request logging with response latency (ms)
-├── validation/
-│   └── authValidation.js     # Sanitization, email regex, MSISDN phone normalization
-├── repositories/
-│   └── userRepository.js     # Parameterized SQL queries ($1, $2) for users
-├── services/
-│   └── authService.js        # Password hashing (bcrypt), token issuance, auth logic
-├── controllers/
-│   ├── healthController.js   # /api/health and /api/health/db
-│   ├── authController.js     # /api/auth (register, login, me, admin create user)
-│   └── userController.js     # /api/users (administrative user management)
-├── routes/
-│   ├── healthRoutes.js       # GET /api/health, GET /api/health/db
-│   ├── authRoutes.js         # POST /api/auth/register, POST /api/auth/login, GET /api/auth/me
-│   └── userRoutes.js         # GET /api/users, POST /api/users, GET /api/users/:id
-├── Database/
-│   ├── schema.sql            # Consolidated schema reference
-│   ├── SCHEMA_DOCUMENTATION.md # Detailed schema documentation
-│   ├── migrate.js            # Transactional migration runner
-│   ├── migrations/           # Versioned SQL migrations (001 to 006)
-│   └── tests/                # Database schema & constraint tests
-└── tests/
-    ├── health.test.js        # Health and database readiness tests
-    └── auth.test.js          # Auth, validation, RBAC, and rate limiting tests
-```
+| Method | Endpoint | Access Role | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/products` | Public / Auth | List active products (Admins can pass `?include_inactive=true`) |
+| `GET` | `/api/products/:id` | Public / Auth | Retrieve single product details |
+| `POST` | `/api/products` | `admin` | Create product (`name`, `price > 0`, `sku`, `commission_per_unit`) |
+| `PUT` | `/api/products/:id` | `admin` | Update product details |
+| `DELETE` | `/api/products/:id` | `admin` | Soft-deactivate product (`is_active = false`) |
 
----
+### 3.2 Centers & Hub Inventory (`/api/centers` & `/api/inventory`)
 
-## 5. Implemented Endpoints & Security Controls
+| Method | Endpoint | Access Role | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/centers` | Auth | List centers |
+| `GET` | `/api/centers/:id` | Auth | Center hub details |
+| `POST` | `/api/centers` | `admin` | Create new center hub (`name`, `location`, `contact_phone`) |
+| `PUT` | `/api/centers/:id` | `admin` | Update center hub details |
+| `DELETE` | `/api/centers/:id` | `admin` | Soft-deactivate center hub |
+| `GET` | `/api/inventory` | Scoped | View stock for permitted center (Admin/Manager any center; Agent/Center confined to assigned hub) |
+| `GET` | `/api/inventory/center/:centerId` | Scoped | View stock for specific center (scoped) |
+| `GET` | `/api/inventory/center/:centerId/product/:productId` | Scoped | View single product quantity at center |
+| `POST` | `/api/inventory/restock` | `admin`, `manager` | Restock center inventory with atomic transaction and `stock_movements` ledger entry |
 
-| Method | Endpoint | Access Control | Rate Limited | Description |
-| :--- | :--- | :--- | :---: | :--- |
-| `GET` | `/api/health` | Public | No | API operational status & server timestamp |
-| `GET` | `/api/health/db` | Public | No | PostgreSQL readiness check (`SELECT 1`) with latency ms |
-| `POST` | `/api/auth/register` | Public | **Yes (20/15m)** | Public registration strictly restricted to `agent` role |
-| `POST` | `/api/auth/login` | Public | **Yes (20/15m)** | Validates email/password and returns signed JWT token |
-| `GET` | `/api/auth/me` | Bearer Token | No | Returns authenticated user's profile |
-| `GET` | `/api/users` | Admin, Manager | No | Paginated list of users |
-| `POST` | `/api/users` | Admin only | No | Creates privileged accounts (`manager`, `center`, `admin`) |
-| `GET` | `/api/users/:id` | Admin, Manager | No | Fetches user details by ID |
-| `GET` | `/api/products` | Public | No | Read-only product listing |
+### 3.3 Hierarchical Multi-Item Orders (`/api/orders`)
 
-### 5.1 Consistent JSON Envelope Standard
-- **Success Responses:**
-  ```json
-  {
-    "success": true,
-    "message": "Optional descriptive status",
-    "data": { ... }
-  }
-  ```
-- **Error Responses:**
-  ```json
-  {
-    "success": false,
-    "error": {
-      "code": "ERROR_CODE",
-      "message": "Safe human-readable message without raw SQL or secrets"
-    }
-  }
-  ```
+| Method | Endpoint | Access Role | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/orders` | `agent`, `center` | Create hierarchical multi-item order (`items: [{ product_id, quantity }]`) |
+| `GET` | `/api/orders` | Scoped | List orders (Agent sees own; Center sees hub; Manager sees replenishments; Admin sees all) |
+| `GET` | `/api/orders/:id` | Scoped | Get order details with line items |
+| `PUT` | `/api/orders/:id/status` | Scoped Reviewer | Transition order status (`approved`, `rejected`, `fulfilled`, `cancelled`) |
+
+**Order Hierarchy & Concurrency Rules:**
+1. **Agent-to-Center (`agent_to_center`):**
+   - Placed by `agent` to restock from their assigned center hub.
+   - Status transitions: `pending` $\rightarrow$ `approved` $\rightarrow$ `fulfilled`.
+   - **Self-Approval Forbidden:** An agent cannot approve or fulfill their own order.
+   - Reviewer must be `center` operator for that hub or `admin`/`manager`.
+   - On fulfillment, center stock is locked with `SELECT ... FOR UPDATE` and deducted. Fails with `400 INSUFFICIENT_STOCK` if hub balance is lower than requested.
+2. **Center-to-Manager (`center_to_manager`):**
+   - Placed by `center` operator requesting replenishment from a manager.
+   - Reviewer must be `manager` or `admin`.
+   - On fulfillment, stock is added to the center hub and recorded in `stock_movements`.
+
+### 3.4 Sales & Commission Engine (`/api/sales` & `/api/commissions`)
+
+| Method | Endpoint | Access Role | Description |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/api/sales` | `agent` | Record product sale, deduct center stock atomically, generate commissions |
+| `GET` | `/api/sales` | Scoped | List sales (Agent sees own; Center sees hub; Admin/Manager sees all) |
+| `GET` | `/api/commissions` | Scoped | List commissions (Agent sees own; Admin/Manager sees all) |
+
+**Sales & Commission Business Rules:**
+- **Trusted Pricing:** Client-supplied prices and commission figures are strictly ignored. Product unit price is loaded directly from PostgreSQL with row lock (`FOR UPDATE`).
+- **Inventory Source:** Stock is automatically verified and deducted from the agent's assigned Center Hub (`users.center_id`).
+- **Direct Commission:** Calculated as a fixed rate per unit sold (e.g. `agent.commission_rate * quantity` or falling back to `product.commission_per_unit * quantity`, default 50.00 KES/unit).
+- **1-Level Recruiter Override Bonus:** If the selling agent was recruited by an active uplink agent (`users.recruiter_id`), an override commission of **5% of the total sale amount** is awarded to the recruiter.
+- **Single-Tier Override Limit:** Enforced by PostgreSQL unique index `uq_commissions_sale_type (sale_id, type)` preventing multi-tier override creep.
 
 ---
 
-## 6. How to Configure, Run, and Test the Backend
+## 4. Verification & Automated Test Results
 
-### 6.1 Configuration
-1. Copy the example configuration file:
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
-2. Populate the required database credentials and generate a secure `JWT_SECRET` (e.g., `openssl rand -hex 32`).
+The backend contains a complete automated integration test suite:
 
-### 6.2 Running Database Migrations
 ```bash
-# Check migration status
-npm run migrate:status --prefix backend
+$ npm test --prefix backend
 
-# Apply pending migrations inside transactions
-npm run migrate --prefix backend
+▶ Database Schema & Constraint Verification
+  ✔ All migrations are marked as applied in schema_migrations (16.0ms)
+  ✔ All expected tables exist in public schema (10.2ms)
+  ✔ User self-referral constraint prevents user from recruiting themselves (17.3ms)
+  ✔ Commissions table strictly limits sales to at most 1 direct and 1 override commission (16.5ms)
+  ✔ Payout items cannot include the same commission in multiple active payouts (16.8ms)
+  ✔ Audit log table rejects credentials and passwords in new_values and old_values (8.9ms)
+
+▶ Authentication, Validation, RBAC & Rate Limiting (18 tests passing)
+  ✔ Input validation (name, email, password, MSISDN phone)
+  ✔ Public registration role enforcement (strictly forces 'agent')
+  ✔ Conflict handling (duplicate email/phone)
+  ✔ JWT authentication and profile extraction (/api/auth/me)
+  ✔ RBAC administrative user creation (/api/users)
+  ✔ Rate limiting protection (429 Too Many Requests)
+
+▶ Soya Ventures Business APIs (18 tests passing)
+  ✔ Product creation, duplicate SKU rejection, price updates, deactivation
+  ✔ Center creation and scoped inventory access (cross-center access forbidden)
+  ✔ Administrative center restocking and audit ledger tracking
+  ✔ Multi-line orders (agent_to_center), self-approval prevention (403)
+  ✔ Concurrency control & insufficient stock rejection on fulfillment
+  ✔ Sales processing with trusted DB prices (client spoofed prices ignored)
+  ✔ Automatic direct commission + 5% 1-tier recruiter override calculation
+  ✔ Scoped commission visibility
+
+▶ Health & Database Readiness Endpoints (3 tests passing)
+  ✔ GET /api/health returns 200
+  ✔ GET /api/health/db returns 200 with connection latency
+  ✔ Unrecognized endpoints return 404 JSON
+
+ℹ tests 45 | suites 13 | pass 45 | fail 0
 ```
-
-### 6.3 Starting the Server
-```bash
-# Start in production mode
-npm start --prefix backend
-
-# Start in development mode with native file watching
-npm run dev --prefix backend
-```
-The server will start listening at `http://0.0.0.0:3000`.
-
-### 6.4 Stopping the Server
-Press `Ctrl+C` (or send `SIGINT` / `SIGTERM`). The application catches these signals and performs a graceful shutdown:
-1. Closes the HTTP server to refuse new requests.
-2. Drains and closes the PostgreSQL connection pool.
-3. Exits cleanly with status code `0`.
-
-### 6.5 Running Automated Tests
-```bash
-npm test --prefix backend
-```
-Test execution runs all test suites under `backend/Database/tests/` and `backend/tests/`:
-- **Database Schema & Constraints:** 6 tests passing.
-- **Authentication, Validation, RBAC & Rate Limiting:** 18 tests passing.
-- **Health & Readiness:** 3 tests passing.
-- **Total:** **27 passing tests, 0 failures**.
 
 ---
 
-## 7. Next Action Items (Task 4+)
+## 5. Next Action Items (Task 5+)
 
-1. **Task 4: Product Catalog, Hub Inventory & Restocking Orders**
-   - Products CRUD with SKU management.
-   - Hub inventory tracking and stock adjustments.
-   - Hierarchical orders:
-     - Agent $\rightarrow$ Center orders (`pending` $\rightarrow$ `approved` $\rightarrow$ `fulfilled`).
-     - Center $\rightarrow$ Manager restocking replenishment.
-     - Row-level locking with `SELECT ... FOR UPDATE` and immutable ledger logging in `stock_movements`.
-2. **Task 5: Sales & Commission Engine**
-   - Atomic sale recording with stock deduction.
-   - Automated calculation of direct commission + 1-level recruiter override bonus.
-3. **Task 6: Safaricom Daraja M-Pesa B2C Payout Integration**
-   - OAuth 2.0 token caching and Daraja Initiator Password RSA encryption.
-   - Payout batch creation, dispatch, and callback handling.
+1. **Task 5: Safaricom Daraja M-Pesa B2C Payout Integration**
+   - `mpesaService`: Safaricom Daraja OAuth 2.0 token generation & caching.
+   - B2C Initiator Password encryption with Safaricom's X.509 public key certificate.
+   - Batch creation (`payout_batches`), bundling payable commissions.
+   - Payout dispatch (`/mpesa/b2c/v1/paymentrequest`) and webhook callback handling (`/api/payouts/b2c/result`).
+   - Idempotent state transitions: `pending` $\rightarrow$ `processing` $\rightarrow$ `success` / `failed`.
+2. **Task 6: Logging, Hardening, and API Documentation (OpenAPI/Swagger or Postman Collection)**

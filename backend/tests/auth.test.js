@@ -28,6 +28,7 @@ describe('Authentication, Validation, RBAC & Rate Limiting', () => {
   after(async () => {
     // Clean up all test users created during test runs
     await pool.query("DELETE FROM users WHERE email LIKE '%@test-auth.com'");
+    if (server.closeAllConnections) server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
     await pool.end();
   });
