@@ -47,5 +47,20 @@ module.exports = {
     windowMs: Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
     max: Number(process.env.AUTH_RATE_LIMIT_MAX) || 20,
   },
+  mpesa: {
+    environment: process.env.MPESA_ENVIRONMENT || 'sandbox',
+    consumerKey: process.env.MPESA_CONSUMER_KEY || '',
+    consumerSecret: process.env.MPESA_CONSUMER_SECRET || '',
+    initiatorName: process.env.MPESA_INITIATOR_NAME || 'testapi',
+    securityCredential: process.env.MPESA_SECURITY_CREDENTIAL || '',
+    shortcode: process.env.MPESA_B2C_SHORTCODE || '600988',
+    commandId: process.env.MPESA_B2C_COMMAND_ID || 'BusinessPayment',
+    resultUrl: process.env.MPESA_RESULT_URL || 'https://sandbox.soya.co.ke/api/payouts/b2c/result',
+    timeoutUrl: process.env.MPESA_TIMEOUT_URL || 'https://sandbox.soya.co.ke/api/payouts/b2c/timeout',
+    callbackSecret: process.env.MPESA_CALLBACK_SECRET || 'soya_sandbox_callback_secret_token_2026',
+    baseUrl: (process.env.MPESA_ENVIRONMENT === 'production')
+      ? 'https://api.safaricom.co.ke'
+      : 'https://sandbox.safaricom.co.ke',
+  },
 };
 

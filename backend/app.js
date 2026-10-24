@@ -16,6 +16,7 @@ const inventoryRoutes = require('./routes/inventoryRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const saleRoutes = require('./routes/saleRoutes');
 const commissionRoutes = require('./routes/commissionRoutes');
+const payoutRoutes = require('./routes/payoutRoutes');
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/commissions', commissionRoutes);
+app.use('/api/payouts', payoutRoutes);
 
 // Centralized 404 handler for unrecognized endpoints
 app.use(notFoundHandler);
