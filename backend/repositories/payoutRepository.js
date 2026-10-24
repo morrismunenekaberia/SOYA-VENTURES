@@ -7,6 +7,7 @@
 const crypto = require('crypto');
 const { pool } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
+const { logger, maskPhone } = require('../config/logger');
 
 function generateReference(prefix = 'PAY') {
   const timestamp = Date.now().toString(36).toUpperCase();
@@ -136,6 +137,14 @@ async function createBatchFromCommissions({ managerId, commissionIds, notes = nu
 
     await client.query('COMMIT');
 
+    logger.info('Payout batch created', {
+      batchId: createdBatch.id,
+      batchReference: createdBatch.batch_reference,
+      managerId,
+      itemCount: items.length,
+      totalAmount: createdBatch.total_amount,
+    });
+
     return {
       batch: createdBatch,
       items,
@@ -245,7 +254,17 @@ async function updateItemWithDispatch({ itemId, originatorConversationId, conver
     RETURNING *;
   `;
   const res = await pool.query(query, [originatorConversationId, conversationId, itemId]);
-  return res.rows[0] || null;
+  const item = res.rows[0] || null;
+
+  if (item) {
+    logger.info('Payout item marked processing (dispatched)', {
+      itemId,
+      conversationId,
+      originatorConversationId,
+    });
+  }
+
+  return item;
 }
 
 async function updateItemWithResult({
@@ -352,6 +371,14 @@ async function updateItemWithResult({
     }
 
     await client.query('COMMIT');
+
+    logger.info('Payout item status updated', {
+      itemId,
+      status: updatedItem.status,
+      resultCode,
+      transactionId: updatedItem.transaction_id,
+    });
+
     return updatedItem;
   } catch (err) {
     await client.query('ROLLBACK');

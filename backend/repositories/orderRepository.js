@@ -4,6 +4,7 @@
 
 const { pool } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
+const { logger } = require('../config/logger');
 
 async function createOrder({
   order_type,
@@ -93,6 +94,15 @@ async function createOrder({
     }
 
     await client.query('COMMIT');
+
+    logger.info('Order placed successfully', {
+      orderId: createdOrder.id,
+      orderType: createdOrder.order_type,
+      requesterId: createdOrder.requester_id,
+      centerId: createdOrder.center_id,
+      totalAmount: calculatedTotal,
+      itemCount: insertedItems.length,
+    });
 
     return {
       ...createdOrder,
@@ -280,6 +290,13 @@ async function transitionOrderStatus({ orderId, newStatus, reviewer, notes = nul
 
           const currentQty = stockRes.rows[0] ? stockRes.rows[0].quantity : 0;
           if (currentQty < item.quantity) {
+            logger.warn('Order fulfillment rejected: Insufficient hub stock', {
+              orderId,
+              centerId: order.center_id,
+              productId: item.product_id,
+              available: currentQty,
+              required: item.quantity,
+            });
             throw new AppError(
               `Insufficient stock at Center Hub to fulfill product ID ${item.product_id}. Available: ${currentQty}, Required: ${item.quantity}.`,
               400,
@@ -370,6 +387,16 @@ async function transitionOrderStatus({ orderId, newStatus, reviewer, notes = nul
     const updateRes = await client.query(updateQuery, updateValues);
 
     await client.query('COMMIT');
+
+    logger.info('Order status transitioned', {
+      orderId,
+      orderType: order.order_type,
+      fromStatus: order.status,
+      toStatus: newStatus,
+      reviewerId: reviewer.id,
+      reviewerRole: reviewer.role,
+    });
+
     return updateRes.rows[0];
   } catch (err) {
     await client.query('ROLLBACK');

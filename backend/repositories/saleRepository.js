@@ -4,6 +4,7 @@
 
 const { pool } = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
+const { logger, maskPhone } = require('../config/logger');
 
 const RECRUITER_OVERRIDE_PERCENTAGE = 0.05; // 5% of total sale amount
 
@@ -37,6 +38,13 @@ async function recordSale({ agent, product_id, quantity, customer_phone = null }
     const currentStock = stockRes.rows[0] ? stockRes.rows[0].quantity : 0;
 
     if (currentStock < quantity) {
+      logger.warn('Sale rejected: Insufficient stock', {
+        agentId: agent.id,
+        centerId: agent.center_id,
+        productId: product_id,
+        available: currentStock,
+        requested: quantity,
+      });
       throw new AppError(
         `Insufficient inventory at Center Hub for '${product.name}'. Available: ${currentStock}, Requested: ${quantity}.`,
         400,
@@ -131,6 +139,17 @@ async function recordSale({ agent, product_id, quantity, customer_phone = null }
     }
 
     await client.query('COMMIT');
+
+    logger.info('Sale recorded and inventory deducted', {
+      saleId: createdSale.id,
+      agentId: agent.id,
+      centerId: agent.center_id,
+      productId: product_id,
+      quantity,
+      total,
+      customerPhone: maskPhone(customer_phone),
+      directCommission: directCommissionAmount,
+    });
 
     return {
       sale: {

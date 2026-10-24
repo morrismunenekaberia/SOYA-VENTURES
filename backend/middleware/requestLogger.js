@@ -1,27 +1,55 @@
 /**
  * Soya Ventures - Request Logger Middleware
  * 
- * Intercepts requests and responses, recording execution time and status.
+ * Assigns or propagates X-Request-Id correlation tokens, tracks request duration,
+ * and records structured, timestamped logs for all incoming HTTP traffic.
  */
 
+const crypto = require('crypto');
+const { logger } = require('../config/logger');
+
 function requestLogger(req, res, next) {
-  // Suppress verbose logging during automated test runs
-  if (process.env.NODE_ENV === 'test') {
-    return next();
-  }
+  // 1. Assign or propagate correlation ID
+  const incomingId = req.headers['x-request-id'] || req.headers['x-correlation-id'];
+  req.id = incomingId && typeof incomingId === 'string' && incomingId.length <= 64
+    ? incomingId
+    : crypto.randomUUID();
 
-  const start = Date.now();
-  const { method, originalUrl } = req;
+  // Propagate correlation token in response headers
+  res.setHeader('X-Request-Id', req.id);
 
+  // Attach a context-bound child logger to the request
+  req.log = logger.child({ correlationId: req.id });
+
+  const start = process.hrtime.bigint();
+  const { method, originalUrl, ip } = req;
+
+  // Log incoming request at debug level
+  req.log.debug(`Incoming ${method} ${originalUrl}`, {
+    ip: ip || req.socket.remoteAddress,
+  });
+
+  // Track response completion
   res.on('finish', () => {
-    const duration = Date.now() - start;
+    const end = process.hrtime.bigint();
+    const durationMs = Number((end - start) / 1000000n);
     const { statusCode } = res;
-    const logColor = statusCode >= 500 ? '\x1b[31m' : statusCode >= 400 ? '\x1b[33m' : '\x1b[32m';
-    const resetColor = '\x1b[0m';
 
-    console.log(
-      `[${new Date().toISOString()}] ${method} ${originalUrl} ${logColor}${statusCode}${resetColor} - ${duration}ms`
-    );
+    const logMeta = {
+      method,
+      url: originalUrl,
+      statusCode,
+      durationMs,
+      ip: ip || req.socket.remoteAddress,
+    };
+
+    if (statusCode >= 500) {
+      req.log.error(`${method} ${originalUrl} ${statusCode} - ${durationMs}ms`, logMeta);
+    } else if (statusCode >= 400) {
+      req.log.warn(`${method} ${originalUrl} ${statusCode} - ${durationMs}ms`, logMeta);
+    } else {
+      req.log.info(`${method} ${originalUrl} ${statusCode} - ${durationMs}ms`, logMeta);
+    }
   });
 
   next();
@@ -30,4 +58,3 @@ function requestLogger(req, res, next) {
 module.exports = {
   requestLogger,
 };
-

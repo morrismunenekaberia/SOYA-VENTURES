@@ -1,6 +1,6 @@
 # Soya Ventures - Project State & Architecture Documentation
 
-**Last Updated:** 2026-10-21 (Task 5 Completed: Safaricom Daraja B2C Sandbox Payouts)  
+**Last Updated:** 2026-10-24 (Task 6 Completed: Hardened, Tested, and Documented)  
 **Project Path:** `/home/swe-dev/Projects/Flutter_app/Soya_Ventures`  
 **Purpose:** Single source of truth for developers and AI agents to continue work seamlessly.
 
@@ -181,7 +181,7 @@ flowchart TD
 
 ## 5. Verification & Automated Test Results
 
-The backend contains 56 automated integration tests across 17 test suites:
+The backend contains 67 automated integration tests across 22 test suites:
 
 ```bash
 $ npm test --prefix backend
@@ -230,7 +230,20 @@ $ npm test --prefix backend
   ✔ Failed callback marks payout item failed and reverts commission to payable
   ✔ Manager manual reconciliation for missing/timed-out callbacks
 
-ℹ tests 56 | suites 17 | pass 56 | fail 0 | cancelled 0 | skipped 0
+▶ Hardening, Reliability & Security Verification (11 tests passing)
+  ✔ Automatically assigns and returns an X-Request-Id header if none provided
+  ✔ Preserves client-supplied X-Request-Id for distributed tracing
+  ✔ Disables X-Powered-By header to prevent server fingerprinting
+  ✔ Rejects request exceeding 100kb limit with 413 Payload Too Large
+  ✔ Rejects malformed JSON with 400 Bad Request and structured error
+  ✔ maskPhone redacts middle digits of phone numbers
+  ✔ redact deep-cleans passwords, secrets, tokens, and authorization headers
+  ✔ redact safely handles circular references without throwing
+  ✔ redact strips bearer tokens from strings
+  ✔ 404 endpoint response does not leak internal server details
+  ✔ Parameterized queries safely neutralize SQL injection attempts in search queries
+
+ℹ tests 67 | suites 22 | pass 67 | fail 0 | cancelled 0 | skipped 0
 ```
 
 ---

@@ -7,6 +7,7 @@
 
 const config = require('../config/env');
 const { AppError } = require('../middleware/errorHandler');
+const { logger, maskPhone } = require('../config/logger');
 
 let cachedToken = null;
 let tokenExpiresAt = 0;
@@ -61,8 +62,7 @@ async function getAccessToken() {
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Daraja OAuth Token Error: HTTP', response.status, errorText);
+      logger.error('Daraja OAuth Token Error: HTTP status failure', { status: response.status });
       throw new AppError('Failed to obtain M-Pesa authorization token.', 502, 'MPESA_AUTH_FAILED');
     }
 
@@ -70,9 +70,14 @@ async function getAccessToken() {
     cachedToken = data.access_token;
     tokenExpiresAt = Date.now() + (Number(data.expires_in) || 3599) * 1000;
 
+    logger.debug('Daraja OAuth token refreshed successfully', {
+      expiresIn: data.expires_in,
+    });
+
     return cachedToken;
   } catch (err) {
     if (err instanceof AppError) throw err;
+    logger.error('Daraja OAuth network connection error', { error: err.message });
     throw new AppError(`M-Pesa network connectivity error: ${err.message}`, 502, 'MPESA_NETWORK_ERROR');
   }
 }
@@ -87,6 +92,12 @@ async function sendB2CPaymentRequest({
   occasion = null,
   payoutReference,
 }) {
+  logger.info('Dispatching Daraja B2C payment request', {
+    payoutReference,
+    phone: maskPhone(phone),
+    amount,
+  });
+
   if (mockTransport && mockTransport.sendB2C) {
     return mockTransport.sendB2C({ phone, amount, remarks, occasion, payoutReference });
   }
@@ -123,6 +134,12 @@ async function sendB2CPaymentRequest({
 
     // Safaricom acceptance response (ResponseCode 0 means queued for processing)
     if (response.ok && data.ResponseCode === '0') {
+      logger.info('Daraja accepted B2C payment request', {
+        payoutReference,
+        conversationId: data.ConversationID,
+        originatorConversationId: data.OriginatorConversationID,
+      });
+
       return {
         accepted: true,
         conversationId: data.ConversationID,
@@ -132,6 +149,12 @@ async function sendB2CPaymentRequest({
     }
 
     // Explicit Daraja rejection
+    logger.warn('Daraja rejected B2C payment request', {
+      payoutReference,
+      errorCode: data.errorCode || data.ResponseCode || 'B2C_REJECTED',
+      errorMessage: data.errorMessage || data.ResponseDescription,
+    });
+
     return {
       accepted: false,
       errorCode: data.errorCode || data.ResponseCode || 'B2C_REJECTED',
@@ -140,6 +163,10 @@ async function sendB2CPaymentRequest({
   } catch (err) {
     // Flag network timeouts / connectivity failures as UNCERTAIN
     err.isNetworkFailure = true;
+    logger.warn('Daraja B2C network timeout / connection failure', {
+      payoutReference,
+      error: err.message,
+    });
     throw err;
   }
 }

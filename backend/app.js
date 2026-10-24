@@ -23,11 +23,11 @@ const app = express();
 // Disable x-powered-by header for security
 app.disable('x-powered-by');
 
-// Allow JSON body payloads
-app.use(express.json());
-
-// Request tracking & timing interceptor
+// Request tracking & correlation ID interceptor (first in pipeline)
 app.use(requestLogger);
+
+// Allow JSON body payloads with safe request size limit (100kb)
+app.use(express.json({ limit: '100kb' }));
 
 // Mount domain routes
 app.use('/api/health', healthRoutes);
@@ -48,4 +48,3 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 module.exports = app;
-
